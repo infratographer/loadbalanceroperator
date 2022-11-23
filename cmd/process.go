@@ -38,12 +38,6 @@ var processCmd = &cobra.Command{
 	Short: "Message machine go brrrrrrrr",
 	Long:  `Begin processing requests from queues.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		go func() {
-			for {
-				logger.Infoln("YAML machine go brrrrr")
-				time.Sleep(10 * time.Second)
-			}
-		}()
 
 		liveness_port := viper.GetString("liveness-port")
 		handlers.ExposeEndpoint("healthz", liveness_port, logger)
