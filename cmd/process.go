@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package cmd
 
 import (
@@ -21,7 +22,6 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/Moby/Moby/pkg/namesgenerator"
 	"github.com/infratographer/wallenda/pkg/deployments"
@@ -35,15 +35,15 @@ import (
 // processCmd represents the base command when called without any subcommands
 var processCmd = &cobra.Command{
 	Use:   "process",
-	Short: "Message machine go brrrrrrrr",
-	Long:  `Begin processing requests from queues.`,
+	Short: "Begin processing requests from queues.",
+	Long:  `Begin processing requests from message queues to create LBs.`,
 	Run: func(cmd *cobra.Command, args []string) {
 
-		liveness_port := viper.GetString("liveness-port")
-		handlers.ExposeEndpoint("healthz", liveness_port, logger)
+		livenessPort := viper.GetString("liveness-port")
+		handlers.ExposeEndpoint("healthz", livenessPort, logger)
 
-		nats_url := viper.GetString("nats.url")
-		nc := events.ConnectNATS(nats_url, logger)
+		natsURL := viper.GetString("nats.url")
+		nc := events.ConnectNATS(natsURL, logger)
 		defer nc.Close()
 
 		js, err := nc.JetStream()
@@ -51,16 +51,16 @@ var processCmd = &cobra.Command{
 			logger.Fatalf("Unable to establish a Jetstream context: %s", err)
 		}
 
-		readiness_port := viper.GetString("readiness-port")
-		handlers.ExposeEndpoint("readyz", readiness_port, logger)
+		readinessPort := viper.GetString("readiness-port")
+		handlers.ExposeEndpoint("readyz", readinessPort, logger)
 
-		subject_prefix := viper.GetString("nats.subject-prefix")
-		if subject_prefix == "" {
+		subjectPrefix := viper.GetString("nats.subject-prefix")
+		if subjectPrefix == "" {
 			logger.Fatalln("NATS subject prefix is not set.")
 		}
 
-		stream_name := viper.GetString("nats.stream-name")
-		if stream_name == "" {
+		streamName := viper.GetString("nats.stream-name")
+		if streamName == "" {
 			logger.Fatalln("NATS stream name is not set.")
 		}
 
@@ -72,33 +72,47 @@ var processCmd = &cobra.Command{
 		kubeconfig := viper.GetString("kube-config-path")
 		client := deployments.KubeAuth(logger, kubeconfig)
 
-		js.QueueSubscribe(fmt.Sprintf("%s.>", subject_prefix), "wallenda-workers", func(m *nats.Msg) {
+		_, err = js.QueueSubscribe(fmt.Sprintf("%s.>", subjectPrefix), "wallenda-workers", func(m *nats.Msg) {
 			fmt.Printf("Msg received on [%s] : %s\n", m.Subject, string(m.Data))
 			switch m.Subject {
-			case fmt.Sprintf("%s.create", subject_prefix):
-				deployments.CreateNamespace(client, string(m.Data), logger)
+			case fmt.Sprintf("%s.create", subjectPrefix):
+				err = deployments.CreateNamespace(client, string(m.Data), logger)
+				if err != nil {
+					logger.Errorf("Unable to ensure namespace exists: %s", err)
+				}
 				//TODO: Just using random name generator for now. This should go away ASAP.
 				name := namesgenerator.GetRandomName(0)
-				name = strings.Replace(name, "_", "-", -1)
-				deployments.CreateApp(name, client, chart, string(m.Data), logger)
-			case fmt.Sprintf("%s.update", subject_prefix):
+				name = strings.ReplaceAll(name, "_", "-")
+				err = deployments.CreateApp(name, client, chart, string(m.Data), logger)
+				if err != nil {
+					logger.Errorf("Unable to create application: %s", err)
+				}
+			case fmt.Sprintf("%s.update", subjectPrefix):
 				fmt.Println("zap")
 			default:
 				logger.Debug("This is some other set of queues that we don't know about.")
 			}
-		}, nats.BindStream(stream_name))
+		}, nats.BindStream(streamName))
+
+		if err != nil {
+			logger.Errorf("Unable to subscribe to queue: %s", err)
+		}
 
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGABRT)
 
 		// Wait for appropriate signal to trigger clean shutdown
-		for {
-			select {
-			case recvSig := <-sigCh:
-				signal.Stop(sigCh)
-				fmt.Printf("\nGet the brooms: %s\n", recvSig)
-				return
-			}
-		}
+		recvSig := <-sigCh
+		signal.Stop(sigCh)
+		fmt.Printf("\nExiting with %s\n.Performing cleanup.\n", recvSig)
+		// return
+		// for {
+		// 	select {
+		// 	case recvSig := <-sigCh:
+		// 		signal.Stop(sigCh)
+		// 		fmt.Printf("\nGet the brooms: %s\n", recvSig)
+		// 		return
+		// 	}
+		// }
 	},
 }
