@@ -84,6 +84,7 @@ func (s *Server) CreateApp(name string, chartPath string, namespace string) erro
 		s.Logger.Errorf("unable to deploy %s to %s", releaseName, namespace)
 		return err
 	}
+
 	s.Logger.Infof("%s deployed to %s successfully", releaseName, namespace)
 
 	return nil
