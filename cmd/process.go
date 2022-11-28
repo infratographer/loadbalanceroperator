@@ -65,12 +65,6 @@ func process(ctx context.Context) error {
 		JetstreamClient: js,
 	}
 
-	livenessPort := viper.GetString("liveness-port")
-	srv.ExposeEndpoint("healthz", livenessPort, logger)
-
-	readinessPort := viper.GetString("readiness-port")
-	srv.ExposeEndpoint("readyz", readinessPort, logger)
-
 	subjectPrefix := viper.GetString("nats.subject-prefix")
 	if subjectPrefix == "" {
 		logger.Fatalln("nats subject prefix is not set")
@@ -86,9 +80,13 @@ func process(ctx context.Context) error {
 		logger.Fatalln("no chart provided.")
 	}
 
-	_, err = js.QueueSubscribe(fmt.Sprintf("%s.>", subjectPrefix), "wallenda-workers", server.MessageHandler, nats.BindStream(streamName))
+	subscription, err := js.QueueSubscribe(fmt.Sprintf("%s.>", subjectPrefix), "wallenda-workers", server.MessageHandler, nats.BindStream(streamName))
 	if err != nil {
 		logger.Errorf("unable to subscribe to queue: %s", err)
+	}
+
+	if err := server.ExposeEndpoint(subscription, viper.GetString("liveness-port")); err != nil {
+		return err
 	}
 
 	sigCh := make(chan os.Signal, 1)

@@ -1,13 +1,13 @@
 package srv
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/Moby/Moby/pkg/namesgenerator"
 	"github.com/nats-io/nats.go"
-	"go.uber.org/zap"
 )
 
 // MessageHandler handles the routing of events from specified queues
@@ -50,18 +50,34 @@ func (s *Server) updateMessageHandler(m *nats.Msg) error {
 }
 
 // ExposeEndpoint exposes a specified port for various checks
-func ExposeEndpoint(name string, port string, logger *zap.SugaredLogger) {
+func (s *Server) ExposeEndpoint(subscription *nats.Subscription, port string) error {
 	if port == "" {
-		logger.Fatalf("port has not been provided for endpoint: %s", name)
+		return errors.New("no port provided")
 	}
 
-	logger.Infof("Starting %s endpoint", name)
-
 	go func() {
-		_ = http.ListenAndServe(port, http.HandlerFunc(
-			func(w http.ResponseWriter, r *http.Request) {
+		s.Logger.Infof("Starting endpoints on %s", port)
+
+		checkConfig := http.NewServeMux()
+		checkConfig.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte("ok"))
+		})
+		checkConfig.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+			if !subscription.IsValid() {
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte("500 - Queue subscription is inactive"))
+			} else {
 				_, _ = w.Write([]byte("ok"))
-			},
-		))
+			}
+		})
+
+		checks := http.Server{
+			Handler: checkConfig,
+			Addr:    port,
+		}
+
+		_ = checks.ListenAndServe()
 	}()
+
+	return nil
 }
