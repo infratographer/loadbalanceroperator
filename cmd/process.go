@@ -38,11 +38,11 @@ var processCmd = &cobra.Command{
 	Short: "Begin processing requests from queues.",
 	Long:  `Begin processing requests from message queues to create LBs.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return process(cmd.Context(), viper.GetViper())
+		return process(cmd.Context())
 	},
 }
 
-func process(ctx context.Context, vpr *viper.Viper) error {
+func process(ctx context.Context) error {
 	kubeconfig := viper.GetString("kube-config-path")
 	client, err := newKubeAuth(kubeconfig)
 
@@ -58,10 +58,10 @@ func process(ctx context.Context, vpr *viper.Viper) error {
 	server := &srv.Server{
 		Context:         ctx,
 		KubeClient:      client,
-		Debug:           vpr.GetBool("logging.debug"),
+		Debug:           viper.GetBool("logging.debug"),
 		Logger:          logger,
-		Prefix:          vpr.GetString("nats.subject-prefix"),
-		ChartPath:       vpr.GetString("chart-path"),
+		Prefix:          viper.GetString("nats.subject-prefix"),
+		ChartPath:       viper.GetString("chart-path"),
 		JetstreamClient: js,
 	}
 
