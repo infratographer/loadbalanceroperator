@@ -2,7 +2,6 @@
 package srv
 
 import (
-	"context"
 	"fmt"
 
 	"helm.sh/helm/v3/pkg/action"
@@ -39,7 +38,7 @@ func (s *Server) CreateNamespace(groupID string) error {
 		Spec:   &applyv1.NamespaceSpecApplyConfiguration{},
 		Status: &applyv1.NamespaceStatusApplyConfiguration{},
 	}
-	_, err = kc.CoreV1().Namespaces().Apply(context.TODO(), &apSpec, metav1.ApplyOptions{FieldManager: "wallenda"})
+	_, err = kc.CoreV1().Namespaces().Apply(s.Context, &apSpec, metav1.ApplyOptions{FieldManager: "wallenda"})
 
 	if err != nil {
 		s.Logger.Errorf("unable to create namespace: %s", err)

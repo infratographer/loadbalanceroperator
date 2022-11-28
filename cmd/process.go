@@ -56,6 +56,7 @@ func process(ctx context.Context, vpr *viper.Viper) error {
 	}
 
 	server := &srv.Server{
+		Context:         ctx,
 		KubeClient:      client,
 		Debug:           vpr.GetBool("logging.debug"),
 		Logger:          logger,
