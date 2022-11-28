@@ -36,8 +36,7 @@ func (s *Server) createMessageHandler(m *nats.Msg) error {
 		return err
 	}
 
-	err = s.CreateApp(name, s.ChartPath, string(m.Data))
-	if err != nil {
+	if err := s.CreateApp(name, s.ChartPath, string(m.Data)); err != nil {
 		return err
 	}
 
