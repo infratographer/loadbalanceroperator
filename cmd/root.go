@@ -40,9 +40,6 @@ var rootCmd = &cobra.Command{
 	Use:   "wallenda",
 	Short: "A controller for processing requests for loadbalancers from a specified queue.",
 	Long:  `A controller for processing requests for loadbalancers from a specified queue.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
