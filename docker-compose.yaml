@@ -33,8 +33,6 @@ services:
       - --jetstream
     ports:
       - "4222:4222"
-      - "6222:6222"
-      - "8222:8222"
     restart: unless-stopped
     networks:
       - wallenda

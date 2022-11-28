@@ -32,6 +32,7 @@ func (s *Server) MessageHandler(m *nats.Msg) {
 
 func (s *Server) createMessageHandler(m *nats.Msg) error {
 	name := strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "-")
+
 	if err := s.CreateNamespace(string(m.Data)); err != nil {
 		return err
 	}
