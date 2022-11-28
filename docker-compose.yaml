@@ -11,6 +11,7 @@ services:
     depends_on:
       - nats
     environment:
+      WALLENDA_DEVELOPMENT: true
       WALLENDA_NATS_URL: nats
       WALLENDA_NATS_STREAM_NAME: "wallenda"
       WALLENDA_KUBE_CONFIG_PATH: /root/.kube/config

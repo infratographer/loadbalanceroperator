@@ -17,16 +17,16 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
-	"github.com/Moby/Moby/pkg/namesgenerator"
-	"github.com/infratographer/wallenda/pkg/deployments"
-	"github.com/infratographer/wallenda/pkg/events"
-	"github.com/infratographer/wallenda/pkg/handlers"
+	"github.com/infratographer/wallenda/internal/srv"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+
 	"github.com/nats-io/nats.go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -37,82 +37,113 @@ var processCmd = &cobra.Command{
 	Use:   "process",
 	Short: "Begin processing requests from queues.",
 	Long:  `Begin processing requests from message queues to create LBs.`,
-	Run: func(cmd *cobra.Command, args []string) {
-
-		livenessPort := viper.GetString("liveness-port")
-		handlers.ExposeEndpoint("healthz", livenessPort, logger)
-
-		natsURL := viper.GetString("nats.url")
-		nc := events.ConnectNATS(natsURL, logger)
-		defer nc.Close()
-
-		js, err := nc.JetStream()
-		if err != nil {
-			logger.Fatalf("Unable to establish a Jetstream context: %s", err)
-		}
-
-		readinessPort := viper.GetString("readiness-port")
-		handlers.ExposeEndpoint("readyz", readinessPort, logger)
-
-		subjectPrefix := viper.GetString("nats.subject-prefix")
-		if subjectPrefix == "" {
-			logger.Fatalln("NATS subject prefix is not set.")
-		}
-
-		streamName := viper.GetString("nats.stream-name")
-		if streamName == "" {
-			logger.Fatalln("NATS stream name is not set.")
-		}
-
-		chart := viper.GetString("chart-path")
-		if chart == "" {
-			logger.Fatalln("No chart was provided.")
-		}
-
-		kubeconfig := viper.GetString("kube-config-path")
-		client := deployments.KubeAuth(logger, kubeconfig)
-
-		_, err = js.QueueSubscribe(fmt.Sprintf("%s.>", subjectPrefix), "wallenda-workers", func(m *nats.Msg) {
-			fmt.Printf("Msg received on [%s] : %s\n", m.Subject, string(m.Data))
-			switch m.Subject {
-			case fmt.Sprintf("%s.create", subjectPrefix):
-				err = deployments.CreateNamespace(client, string(m.Data), logger)
-				if err != nil {
-					logger.Errorf("Unable to ensure namespace exists: %s", err)
-				}
-				//TODO: Just using random name generator for now. This should go away ASAP.
-				name := namesgenerator.GetRandomName(0)
-				name = strings.ReplaceAll(name, "_", "-")
-				err = deployments.CreateApp(name, client, chart, string(m.Data), logger)
-				if err != nil {
-					logger.Errorf("Unable to create application: %s", err)
-				}
-			case fmt.Sprintf("%s.update", subjectPrefix):
-				fmt.Println("zap")
-			default:
-				logger.Debug("This is some other set of queues that we don't know about.")
-			}
-		}, nats.BindStream(streamName))
-
-		if err != nil {
-			logger.Errorf("Unable to subscribe to queue: %s", err)
-		}
-
-		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGABRT)
-
-		// Wait for appropriate signal to trigger clean shutdown
-		recvSig := <-sigCh
-		signal.Stop(sigCh)
-		fmt.Printf("\nExiting with %s\n.Performing cleanup.\n", recvSig)
-		// return
-		// for {
-		// 	select {
-		// 	case recvSig := <-sigCh:
-		// 		signal.Stop(sigCh)
-		// 		fmt.Printf("\nGet the brooms: %s\n", recvSig)
-		// 		return
-		// 	}
-		// }
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return process(cmd.Context(), viper.GetViper())
 	},
+}
+
+func process(ctx context.Context, vpr *viper.Viper) error {
+	kubeconfig := viper.GetString("kube-config-path")
+	client, err := newKubeAuth(kubeconfig)
+
+	if err != nil {
+		logger.Fatalw("failed to create Kubernetes client", "error", err)
+	}
+
+	js, err := newJetstreamConnection()
+	if err != nil {
+		logger.Fatalw("failed to create NATS jetstream connection", "error", err)
+	}
+
+	server := &srv.Server{
+		KubeClient:      client,
+		Debug:           vpr.GetBool("logging.debug"),
+		Logger:          logger,
+		Prefix:          vpr.GetString("nats.subject-prefix"),
+		ChartPath:       vpr.GetString("chart-path"),
+		JetstreamClient: js,
+	}
+
+	livenessPort := viper.GetString("liveness-port")
+	srv.ExposeEndpoint("healthz", livenessPort, logger)
+
+	readinessPort := viper.GetString("readiness-port")
+	srv.ExposeEndpoint("readyz", readinessPort, logger)
+
+	subjectPrefix := viper.GetString("nats.subject-prefix")
+	if subjectPrefix == "" {
+		logger.Fatalln("nats subject prefix is not set")
+	}
+
+	streamName := viper.GetString("nats.stream-name")
+	if streamName == "" {
+		logger.Fatalln("nats stream name is not set")
+	}
+
+	chart := viper.GetString("chart-path")
+	if chart == "" {
+		logger.Fatalln("no chart provided.")
+	}
+
+	_, err = js.QueueSubscribe(fmt.Sprintf("%s.>", subjectPrefix), "wallenda-workers", server.MessageHandler, nats.BindStream(streamName))
+	if err != nil {
+		logger.Errorf("unable to subscribe to queue: %s", err)
+	}
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGABRT)
+
+	// Wait for appropriate signal to trigger clean shutdown
+	recvSig := <-sigCh
+	signal.Stop(sigCh)
+	logger.Infof("exiting with %s. Performing necessary cleanup", recvSig)
+
+	return nil
+}
+
+func newJetstreamConnection() (nats.JetStreamContext, error) {
+	opts := []nats.Option{}
+
+	if viper.GetBool("development") {
+		logger.Debug("enabling development settings")
+
+		opts = append(opts, nats.Token(viper.GetString("nats.token")))
+	} else {
+		opt, err := nats.NkeyOptionFromSeed(viper.GetString("nats.nkey"))
+		if err != nil {
+			return nil, err
+		}
+
+		opts = append(opts, opt)
+	}
+
+	nc, err := nats.Connect(viper.GetString("nats.url"), opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	js, err := nc.JetStream()
+	if err != nil {
+		return nil, err
+	}
+
+	return js, nil
+}
+
+func newKubeAuth(path string) (*rest.Config, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		logger.Debugln("Unable to read in-cluster config")
+
+		if path != "" {
+			config, err = clientcmd.BuildConfigFromFlags("", path)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
+	}
+
+	return config, nil
 }
