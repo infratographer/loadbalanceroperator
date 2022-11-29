@@ -26,7 +26,6 @@ func (s *Server) MessageHandler(m *nats.Msg) {
 		if err != nil {
 			s.Logger.Errorln("unable to process update")
 			// Redeliver message
-			m.Nak()
 			if err := m.Nak(); err != nil {
 				s.Logger.Errorln("unable to process message", err)
 			}
