@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"syscall"
+	"strings"
 
 	"github.com/infratographer/wallenda/internal/srv"
 	"k8s.io/client-go/rest"
@@ -43,9 +43,11 @@ var processCmd = &cobra.Command{
 }
 
 func process(ctx context.Context) error {
-	kubeconfig := viper.GetString("kube-config-path")
-	client, err := newKubeAuth(kubeconfig)
+	if err := validateFlags(); err != nil {
+		return err
+	}
 
+	client, err := newKubeAuth(viper.GetString("kube-config-path"))
 	if err != nil {
 		logger.Fatalw("failed to create Kubernetes client", "error", err)
 	}
@@ -55,8 +57,15 @@ func process(ctx context.Context) error {
 		logger.Fatalw("failed to create NATS jetstream connection", "error", err)
 	}
 
+	if err := validateFlags(); err != nil {
+		return err
+	}
+
+	cx, cancel := context.WithCancel(ctx)
+
 	server := &srv.Server{
-		Context:         ctx,
+		Context:         cx,
+		StreamName:      viper.GetString("nats.stream-name"),
 		KubeClient:      client,
 		Debug:           viper.GetBool("logging.debug"),
 		Logger:          logger,
@@ -65,37 +74,17 @@ func process(ctx context.Context) error {
 		JetstreamClient: js,
 	}
 
-	subjectPrefix := viper.GetString("nats.subject-prefix")
-	if subjectPrefix == "" {
-		logger.Fatalln("nats subject prefix is not set")
-	}
-
-	streamName := viper.GetString("nats.stream-name")
-	if streamName == "" {
-		logger.Fatalln("nats stream name is not set")
-	}
-
-	chart := viper.GetString("chart-path")
-	if chart == "" {
-		logger.Fatalln("no chart provided.")
-	}
-
-	subscription, err := js.QueueSubscribe(fmt.Sprintf("%s.>", subjectPrefix), "wallenda-workers", server.MessageHandler, nats.BindStream(streamName))
-	if err != nil {
-		logger.Errorf("unable to subscribe to queue: %s", err)
-	}
-
-	if err := server.ExposeEndpoint(subscription, viper.GetString("liveness-port")); err != nil {
-		return err
+	if err := server.Run(cx); err != nil {
+		logger.Fatalw("failed starting server", "error", err)
 	}
 
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGABRT)
+	signal.Notify(sigCh, os.Interrupt)
 
-	// Wait for appropriate signal to trigger clean shutdown
 	recvSig := <-sigCh
 	signal.Stop(sigCh)
-	logger.Infof("exiting with %s. Performing necessary cleanup", recvSig)
+	cancel()
+	logger.Infof("exiting. Performing necessary cleanup", recvSig)
 
 	return nil
 }
@@ -132,7 +121,7 @@ func newJetstreamConnection() (nats.JetStreamContext, error) {
 func newKubeAuth(path string) (*rest.Config, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		logger.Debugln("Unable to read in-cluster config")
+		logger.Debugln("unable to read in-cluster config")
 
 		if path != "" {
 			config, err = clientcmd.BuildConfigFromFlags("", path)
@@ -145,4 +134,26 @@ func newKubeAuth(path string) (*rest.Config, error) {
 	}
 
 	return config, nil
+}
+
+func validateFlags() error {
+	errs := []string{}
+
+	if viper.GetString("nats.subject-prefix") == "" {
+		errs = append(errs, ErrNATSURLRequired.Error())
+	}
+
+	if viper.GetString("nats.stream-name") == "" {
+		errs = append(errs, ErrNATSStreamName.Error())
+	}
+
+	if viper.GetString("chart-path") == "" {
+		errs = append(errs, ErrChartPath.Error())
+	}
+
+	if len(errs) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf(strings.Join(errs, "\n")) //nolint:goerr113
 }

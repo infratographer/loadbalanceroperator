@@ -1,7 +1,6 @@
 package srv
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -16,14 +15,21 @@ func (s *Server) MessageHandler(m *nats.Msg) {
 	case fmt.Sprintf("%s.create", s.Prefix):
 		err := s.createMessageHandler(m)
 		if err != nil {
-			// TODO: eventually we'll want to requeue failed events
 			s.Logger.Errorln("unable to process create")
+			// Redeliver message
+			if err := m.Nak(); err != nil {
+				s.Logger.Errorln("unable to process message", err)
+			}
 		}
 	case fmt.Sprintf("%s.update", s.Prefix):
 		err := s.updateMessageHandler(m)
 		if err != nil {
-			// TODO: eventually we'll want to requeue failed events
 			s.Logger.Errorln("unable to process update")
+			// Redeliver message
+			m.Nak()
+			if err := m.Nak(); err != nil {
+				s.Logger.Errorln("unable to process message", err)
+			}
 		}
 	default:
 		s.Logger.Debug("This is some other set of queues that we don't know about.")
@@ -52,7 +58,7 @@ func (s *Server) updateMessageHandler(m *nats.Msg) error {
 // ExposeEndpoint exposes a specified port for various checks
 func (s *Server) ExposeEndpoint(subscription *nats.Subscription, port string) error {
 	if port == "" {
-		return errors.New("no port provided")
+		return ErrPortsRequired
 	}
 
 	go func() {

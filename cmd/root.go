@@ -59,7 +59,7 @@ func init() {
 	rootCmd.PersistentFlags().Bool("pretty", false, "enable pretty (human readable) logging output")
 	viperBindFlag("logging.pretty", rootCmd.PersistentFlags().Lookup("pretty"))
 
-	rootCmd.PersistentFlags().String("nats-url", "nats://127.0.0.1:4222", "NATS server connection url")
+	rootCmd.PersistentFlags().String("nats-url", "", "NATS server connection url")
 	viperBindFlag("nats.url", rootCmd.PersistentFlags().Lookup("nats-url"))
 
 	rootCmd.PersistentFlags().String("nats-nkey", "", "Path to the file containing the NATS nkey keypair")
@@ -71,13 +71,10 @@ func init() {
 	rootCmd.PersistentFlags().String("nats-stream-name", "wallenda", "prefix for NATS subjects")
 	viperBindFlag("nats.stream-name", rootCmd.PersistentFlags().Lookup("nats-stream-name"))
 
-	rootCmd.PersistentFlags().String("liveness-port", ":8080", "port to run liveness probe on")
-	viperBindFlag("liveness-port", rootCmd.PersistentFlags().Lookup("liveness-port"))
+	rootCmd.PersistentFlags().String("healthcheck-port", ":8080", "port to run healthcheck probe on")
+	viperBindFlag("healthcheck-port", rootCmd.PersistentFlags().Lookup("healthcheck-port"))
 
-	rootCmd.PersistentFlags().String("readiness-port", ":8081", "port to run readiness probe on")
-	viperBindFlag("readiness-port", rootCmd.PersistentFlags().Lookup("readiness-port"))
-
-	rootCmd.PersistentFlags().String("chart-path", "/helm", "path that contains deployment chart")
+	rootCmd.PersistentFlags().String("chart-path", "", "path that contains deployment chart")
 	viperBindFlag("chart-path", rootCmd.PersistentFlags().Lookup("chart-path"))
 
 	rootCmd.PersistentFlags().String("kube-config-path", "", "path to a valid kubeconfig file")
