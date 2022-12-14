@@ -4,6 +4,13 @@ package events
 
 import "github.com/google/uuid"
 
+const (
+	// EVENTCREATE is the event type to handle creation events
+	EVENTCREATE = "create"
+	// EVENTUPDATE is the event type to handle update events
+	EVENTUPDATE = "update"
+)
+
 type LoadBalancerResources struct {
 	CPU    string `json:"cpu"`
 	Memory string `json:"memory"`

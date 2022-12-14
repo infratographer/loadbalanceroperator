@@ -10,11 +10,6 @@ import (
 	"go.infratographer.sh/loadbalanceroperator/pkg/pubsubx"
 )
 
-const (
-	EventCreate = "create"
-	EventUpdate = "update"
-)
-
 // MessageHandler handles the routing of events from specified queues
 func (s *Server) MessageHandler(m *nats.Msg) {
 	msg := pubsubx.Message{}
@@ -23,11 +18,11 @@ func (s *Server) MessageHandler(m *nats.Msg) {
 	}
 
 	switch msg.EventType {
-	case EventCreate:
+	case events.EVENTCREATE:
 		if err := s.createMessageHandler(&msg); err != nil {
 			s.Logger.Errorln("unable to process create")
 		}
-	case EventUpdate:
+	case events.EVENTUPDATE:
 		err := s.updateMessageHandler(&msg)
 		if err != nil {
 			s.Logger.Errorln("unable to process update")
