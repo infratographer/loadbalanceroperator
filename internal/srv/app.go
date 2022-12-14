@@ -51,7 +51,7 @@ func (s *Server) CreateNamespace(groupID string) error {
 // CreateApp deploys a loadBalancer based upon the configuration provided
 // from the event that is processed.
 func (s *Server) CreateApp(name string, chartPath string, namespace string) error {
-	releaseName := fmt.Sprintf("%s-%s", name, namespace)
+	releaseName := fmt.Sprintf("lb-%s-%s", name, namespace)
 
 	chart, err := loader.Load(chartPath)
 	if err != nil {
