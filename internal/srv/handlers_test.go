@@ -49,5 +49,4 @@ func TestParseLBData(t *testing.T) {
 	err = parseLBData(&data, &lbData)
 
 	assert.NotNil(t, err)
-
 }
