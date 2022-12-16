@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	events "go.infratographer.sh/loadbalanceroperator/pkg/events/v1alpha1"
-	"go.infratographer.sh/loadbalanceroperator/pkg/pubsubx"
+	events "go.infratographer.com/loadbalanceroperator/pkg/events/v1alpha1"
+	"go.infratographer.com/x/pubsubx"
 )
 
 var (
