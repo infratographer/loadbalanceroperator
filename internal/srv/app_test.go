@@ -40,8 +40,11 @@ func TestGetHelmValues(t *testing.T) {
 
 	for _, tcase := range testCases {
 		t.Run(tcase.name, func(t *testing.T) {
+			srv := Server{
+				Logger: setupTestLogger(t, tcase.name),
+			}
 			content, _ := tcase.content.ReadFile(tcase.file)
-			values, err := getHelmValues(content)
+			values, err := srv.getHelmValues(content)
 
 			if tcase.expectError {
 				assert.NotNil(t, err)

@@ -74,7 +74,7 @@ func (s *Server) CreateApp(name string, chartPath string, namespace string) erro
 		return err
 	}
 
-	values, err := getHelmValues(vf)
+	values, err := s.getHelmValues(vf)
 	if err != nil {
 		return err
 	}
@@ -110,9 +110,10 @@ func (s *Server) CreateApp(name string, chartPath string, namespace string) erro
 	return nil
 }
 
-func getHelmValues(content []byte) (chartutil.Values, error) {
+func (s *Server) getHelmValues(content []byte) (chartutil.Values, error) {
 	values := chartutil.Values{}
 	if err := yaml.Unmarshal(content, &values); err != nil {
+		s.Logger.Errorw("unable to load values data", "error", err)
 		return nil, err
 	}
 

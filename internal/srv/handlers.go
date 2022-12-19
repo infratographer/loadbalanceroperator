@@ -15,13 +15,13 @@ import (
 func (s *Server) MessageHandler(m *nats.Msg) {
 	msg := pubsubx.Message{}
 	if err := json.Unmarshal(m.Data, &msg); err != nil {
-		s.Logger.Errorln("Unable to process data in message: %s", err)
+		s.Logger.Errorw("Unable to process data in message: %s", "error", err)
 	}
 
 	switch msg.EventType {
 	case events.EVENTCREATE:
 		if err := s.createMessageHandler(&msg); err != nil {
-			s.Logger.Errorf("unable to process create: %s", err)
+			s.Logger.Errorw("unable to process create: %s", "error", err)
 		}
 	case events.EVENTUPDATE:
 		err := s.updateMessageHandler(&msg)
