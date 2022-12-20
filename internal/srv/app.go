@@ -3,18 +3,19 @@ package srv
 
 import (
 	"fmt"
-	"os"
 
-	"gopkg.in/yaml.v3"
-	"helm.sh/helm/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/cli/values"
+	"helm.sh/helm/v3/pkg/getter"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	applyv1 "k8s.io/client-go/applyconfigurations/core/v1"
 	applymetav1 "k8s.io/client-go/applyconfigurations/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/helm/pkg/strvals"
 )
 
 const (
@@ -57,29 +58,26 @@ func (s *Server) CreateNamespace(groupID string) error {
 
 // CreateApp deploys a loadBalancer based upon the configuration provided
 // from the event that is processed.
-func (s *Server) CreateApp(name string, chartPath string, namespace string) error {
+func (s *Server) CreateApp(name string, namespace string, overrides []valueSet) error {
 	releaseName := fmt.Sprintf("lb-%s-%s", name, namespace)
 	if len(releaseName) > nameLength {
 		releaseName = releaseName[0:nameLength]
 	}
 
-	chart, err := loader.Load(chartPath)
+	chart, err := loader.Load(s.ChartPath)
 	if err != nil {
-		s.Logger.Errorf("unable to load chart from %s", chartPath)
+		s.Logger.Errorw("unable to load chart from "+s.ChartPath, "error", err)
 		return err
 	}
 
-	vf, err := os.ReadFile(s.ValuesPath)
+	values, err := s.newHelmValues(overrides)
 	if err != nil {
-		return err
-	}
-
-	values, err := s.getHelmValues(vf)
-	if err != nil {
+		s.Logger.Errorw("unable to prepare chart values", "error", err)
 		return err
 	}
 
 	config := &action.Configuration{}
+
 	cliopt := genericclioptions.NewConfigFlags(false)
 	wrapper := func(*rest.Config) *rest.Config {
 		return s.KubeClient
@@ -110,11 +108,24 @@ func (s *Server) CreateApp(name string, chartPath string, namespace string) erro
 	return nil
 }
 
-func (s *Server) getHelmValues(content []byte) (chartutil.Values, error) {
-	values := chartutil.Values{}
-	if err := yaml.Unmarshal(content, &values); err != nil {
+func (s *Server) newHelmValues(overrides []valueSet) (map[string]interface{}, error) {
+	provider := getter.All(&cli.EnvSettings{})
+
+	valOpts := &values.Options{
+		ValueFiles: []string{s.ValuesPath},
+	}
+
+	values, err := valOpts.MergeValues(provider)
+	if err != nil {
 		s.Logger.Errorw("unable to load values data", "error", err)
 		return nil, err
+	}
+
+	for _, override := range overrides {
+		if err := strvals.ParseInto(override.helmKey+"="+override.value, values); err != nil {
+			s.Logger.Errorw("unable to parse values", "error", err)
+			return nil, err
+		}
 	}
 
 	return values, nil

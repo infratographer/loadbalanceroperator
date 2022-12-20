@@ -83,6 +83,12 @@ func init() {
 	rootCmd.PersistentFlags().String("kube-config-path", "", "path to a valid kubeconfig file")
 	viperBindFlag("kube-config-path", rootCmd.PersistentFlags().Lookup("kube-config-path"))
 
+	rootCmd.PersistentFlags().StringSlice("helm-cpu-flag", nil, "flag to set cpu limit for helm chart")
+	viperBindFlag("helm-cpu-flag", rootCmd.PersistentFlags().Lookup("helm-cpu-flag"))
+
+	rootCmd.PersistentFlags().StringSlice("helm-memory-flag", nil, "flag to set memory limit for helm chart")
+	viperBindFlag("helm-memory-flag", rootCmd.PersistentFlags().Lookup("helm-memory-flag"))
+
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
