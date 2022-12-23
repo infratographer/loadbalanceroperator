@@ -2,16 +2,14 @@ package utils
 
 import (
 	"os"
+	"testing"
 
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/release"
 )
-
-// func setupTestLogger(t *testing.T, name string) *zap.SugaredLogger {
-// 	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
-// 	return logger.Sugar().With("test", name)
-// }
 
 // CreateTestChart creates a dummy chart for testing purposes
 func CreateTestChart(outputDir string) (string, error) {
