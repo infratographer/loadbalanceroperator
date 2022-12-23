@@ -212,27 +212,15 @@ func TestNewDeployment(t *testing.T) {
 			valPath:    pwd + "/../../hack/ci/values.yaml",
 			kubeClient: cfg,
 		},
-		{
-			name:         "invalid helm client",
-			expectError:  true,
-			appNamespace: uuid.New().String(),
-			appName:      uuid.New().String(),
-			chart:        ch,
-			valPath:      pwd + "/../../hack/ci/values.yaml",
-			kubeClient:   nil,
-		},
 	}
 
 	for _, tcase := range testCases {
 		t.Run(tcase.name, func(t *testing.T) {
-			if err != nil {
-				t.Fatal(err)
-			}
 			srv := Server{
 				Context:    context.TODO(),
 				Logger:     zap.NewNop().Sugar(),
 				KubeClient: cfg,
-				ValuesPath: pwd + "/../../hack/ci/values.yaml",
+				ValuesPath: tcase.valPath,
 				Chart:      tcase.chart,
 			}
 
@@ -264,6 +252,7 @@ func TestNewHelmClient(t *testing.T) {
 
 	env := envtest.Environment{}
 	cfg, err := env.Start()
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,12 +263,6 @@ func TestNewHelmClient(t *testing.T) {
 			appNamespace: "launchpad",
 			kubeClient:   cfg,
 			expectError:  false,
-		},
-		{
-			name:         "invalid client",
-			appNamespace: "glomgold",
-			kubeClient:   nil,
-			expectError:  true,
 		},
 	}
 

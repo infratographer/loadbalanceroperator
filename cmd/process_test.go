@@ -42,12 +42,6 @@ func TestLoadHelmChart(t *testing.T) {
 			cpath := ""
 
 			if tcase.createChart {
-				// mockreleaseoptions := release.MockReleaseOptions{}
-				// mocker := release.Mock(&mockreleaseoptions)
-				// mchart := mocker.Chart
-				// mchart.Metadata.APIVersion = "v2"
-				// mchart.Metadata.Name = "lb-dummy"
-				// cpath, err = chartutil.Save(mchart, testDir)
 				cpath, err = utils.CreateTestChart(testDir)
 
 				if err != nil {
@@ -55,13 +49,13 @@ func TestLoadHelmChart(t *testing.T) {
 				}
 			}
 
-			_, err := loadHelmChart(cpath)
+			ch, err := loadHelmChart(cpath)
 
 			if tcase.expectError {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				// assert.NotNil(t, chart)
+				assert.NotNil(t, ch)
 			}
 		})
 	}
