@@ -1,11 +1,9 @@
+// Package utils contains utility functions for testing
 package utils
 
 import (
 	"os"
-	"testing"
 
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/release"
