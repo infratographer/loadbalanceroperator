@@ -67,7 +67,7 @@ func (s *Server) createMessageHandler(m *pubsubx.Message) error {
 		})
 	}
 
-	if err := s.CreateApp(lbdata.LoadBalancerID.String(), m.SubjectURN, overrides); err != nil {
+	if err := s.newDeployment(lbdata.LoadBalancerID.String(), m.SubjectURN, overrides); err != nil {
 		s.Logger.Errorw("handler unable to create loadbalancer", "error", err)
 		return err
 	}

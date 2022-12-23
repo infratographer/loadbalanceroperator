@@ -65,7 +65,7 @@ func init() {
 	rootCmd.PersistentFlags().String("nats-nkey", "", "Path to the file containing the NATS nkey keypair")
 	viperBindFlag("nats.nkey", rootCmd.PersistentFlags().Lookup("nats-nkey"))
 
-	rootCmd.PersistentFlags().String("nats-subject-prefix", "events.>", "prefix for NATS subjects")
+	rootCmd.PersistentFlags().String("nats-subject-prefix", "", "prefix for NATS subjects")
 	viperBindFlag("nats.subject-prefix", rootCmd.PersistentFlags().Lookup("nats-subject-prefix"))
 
 	rootCmd.PersistentFlags().String("nats-stream-name", "loadbalanceroperator", "prefix for NATS subjects")

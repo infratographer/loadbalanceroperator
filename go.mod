@@ -158,7 +158,4 @@ require (
 
 require sigs.k8s.io/controller-runtime v0.14.0
 
-require (
-	github.com/benbjohnson/clock v1.1.0 // indirect
-	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
-)
+require github.com/evanphx/json-patch/v5 v5.6.0 // indirect

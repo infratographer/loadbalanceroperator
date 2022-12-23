@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/cli/values"
 	"helm.sh/helm/v3/pkg/getter"
@@ -56,58 +55,6 @@ func (s *Server) CreateNamespace(groupID string) error {
 	return nil
 }
 
-// CreateApp deploys a loadBalancer based upon the configuration provided
-// from the event that is processed.
-func (s *Server) CreateApp(name string, namespace string, overrides []valueSet) error {
-	releaseName := fmt.Sprintf("lb-%s-%s", name, namespace)
-	if len(releaseName) > nameLength {
-		releaseName = releaseName[0:nameLength]
-	}
-
-	chart, err := loader.Load(s.ChartPath)
-	if err != nil {
-		s.Logger.Errorw("unable to load chart from "+s.ChartPath, "error", err)
-		return err
-	}
-
-	values, err := s.newHelmValues(overrides)
-	if err != nil {
-		s.Logger.Errorw("unable to prepare chart values", "error", err)
-		return err
-	}
-
-	config := &action.Configuration{}
-
-	cliopt := genericclioptions.NewConfigFlags(false)
-	wrapper := func(*rest.Config) *rest.Config {
-		return s.KubeClient
-	}
-	cliopt.WithWrapConfigFn(wrapper)
-
-	err = config.Init(cliopt, namespace, "secret", func(format string, v ...interface{}) {
-		// fmt.Println(v)
-
-	})
-	if err != nil {
-		s.Logger.Errorln("unable to initialize helm client: %s", err)
-		return err
-	}
-
-	hc := action.NewInstall(config)
-	hc.ReleaseName = releaseName
-	hc.Namespace = namespace
-	_, err = hc.Run(chart, values)
-
-	if err != nil {
-		s.Logger.Errorf("unable to deploy %s to %s", releaseName, namespace)
-		return err
-	}
-
-	s.Logger.Infof("%s deployed to %s successfully", releaseName, namespace)
-
-	return nil
-}
-
 func (s *Server) newHelmValues(overrides []valueSet) (map[string]interface{}, error) {
 	provider := getter.All(&cli.EnvSettings{})
 
@@ -129,4 +76,59 @@ func (s *Server) newHelmValues(overrides []valueSet) (map[string]interface{}, er
 	}
 
 	return values, nil
+}
+
+// newDeployment deploys a loadBalancer based upon the configuration provided
+// from the event that is processed.
+func (s *Server) newDeployment(name string, namespace string, overrides []valueSet) error {
+	releaseName := fmt.Sprintf("lb-%s-%s", name, namespace)
+	if len(releaseName) > nameLength {
+		releaseName = releaseName[0:nameLength]
+	}
+
+	values, err := s.newHelmValues(overrides)
+	if err != nil {
+		s.Logger.Errorw("unable to prepare chart values", "error", err)
+		return err
+	}
+
+	client, err := s.newHelmClient(namespace)
+	if err != nil {
+		s.Logger.Errorln("unable to initialize helm client: %s", err)
+		return err
+	}
+
+	hc := action.NewInstall(client)
+	hc.ReleaseName = releaseName
+	hc.Namespace = namespace
+	_, err = hc.Run(s.Chart, values)
+
+	if err != nil {
+		s.Logger.Errorf("unable to deploy %s to %s", releaseName, namespace)
+		return err
+	}
+
+	s.Logger.Infof("%s deployed to %s successfully", releaseName, namespace)
+
+	return nil
+}
+
+func (s *Server) newHelmClient(namespace string) (*action.Configuration, error) {
+	config := &action.Configuration{}
+	cliopt := genericclioptions.NewConfigFlags(false)
+	wrapper := func(*rest.Config) *rest.Config {
+		return s.KubeClient
+	}
+	cliopt.WithWrapConfigFn(wrapper)
+
+	err := config.Init(cliopt, namespace, "secret", func(format string, v ...interface{}) {
+		// fmt.Println(v)
+
+	})
+	if err != nil {
+		s.Logger.Errorw("unable to initialize helm client", "error", err)
+		return nil, err
+	}
+
+	return config, nil
 }
