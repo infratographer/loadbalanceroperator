@@ -156,6 +156,6 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-require sigs.k8s.io/controller-runtime v0.14.0
+require sigs.k8s.io/controller-runtime v0.14.1
 
 require github.com/evanphx/json-patch/v5 v5.6.0 // indirect
